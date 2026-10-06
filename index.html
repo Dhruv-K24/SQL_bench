@@ -1,0 +1,3261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mySQL Workbench</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #07090e;
+            --panel-bg: rgba(11, 15, 24, 0.86);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: rgba(255, 255, 255, 0.45);
+            --lavender-glow: #c4b5fd;
+            --lavender-accent: #a78bfa;
+            --lavender-subtle: rgba(196, 181, 253, 0.22);
+            --pink-accent: #f472b6;
+            --pink-subtle: rgba(244, 114, 182, 0.18);
+            --grey-table-val: #94a3b8;
+            --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', Consolas, monospace;
+            --table-zoom: 1.0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-main);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* RIBBON GLOW WEBGL BACKGROUND */
+        .ribbon-bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #ribbon-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            filter: blur(8px);
+            transform: scale(1.06);
+            pointer-events: none;
+        }
+
+        .ribbon-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.38);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            pointer-events: none;
+        }
+
+        /* LOADING OVERLAY */
+        #loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(7, 9, 14, 0.94);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        #pixel-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10001;
+        }
+
+        .loader-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            transition: opacity 0.2s ease;
+        }
+
+        .logo-wrapper {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .glow-halo {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(192, 132, 252, 0.18) 0%, rgba(125, 211, 252, 0.05) 50%, transparent 75%);
+            filter: blur(16px);
+            opacity: 0.15;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .ring-svg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            z-index: 2;
+            transition: opacity 0.3s ease;
+        }
+
+        .ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.05);
+            stroke-width: 3.5;
+        }
+
+        .ring-progress {
+            fill: none;
+            stroke: var(--lavender-glow);
+            stroke-width: 3.5;
+            stroke-linecap: round;
+            stroke-dasharray: 408;
+            stroke-dashoffset: 408;
+            filter: drop-shadow(0 0 8px rgba(196, 181, 253, 0.75));
+            transition: stroke-dashoffset 0.1s linear;
+        }
+
+        .rapid-spin-ring {
+            position: absolute;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            padding: 3.5px;
+            background: conic-gradient(from 0deg,
+                    rgba(196, 181, 253, 0.2),
+                    rgba(196, 181, 253, 0.95),
+                    #ffffff,
+                    rgba(196, 181, 253, 0.95),
+                    rgba(196, 181, 253, 0.2));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 2.5px));
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 2.5px));
+            opacity: 0;
+            z-index: 3;
+            filter: drop-shadow(0 0 8px rgba(196, 181, 253, 0.8));
+            transition: opacity 0.3s ease;
+        }
+
+        .rapid-spin-ring.active {
+            opacity: 1;
+            animation: rapidSpin 0.4s linear infinite;
+        }
+
+        @keyframes rapidSpin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .static-logo {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(196, 181, 253, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 1.5px;
+            color: #ffffff;
+            z-index: 1;
+        }
+
+        .static-logo span {
+            font-size: 0.7rem;
+            color: var(--lavender-glow);
+            opacity: 0.8;
+            font-weight: 600;
+        }
+
+        .loading-text {
+            margin-top: 24px;
+            font-size: 0.8rem;
+            color: var(--lavender-glow);
+            letter-spacing: 1px;
+            opacity: 0.85;
+        }
+
+        /* WORKSPACE FRAME */
+        .app-window {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: 100vw;
+            max-height: 100vh;
+            background: var(--panel-bg);
+            border: none;
+            border-radius: 0;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            pointer-events: auto;
+        }
+
+        /* HEADER NAVBAR */
+        .window-header {
+            height: 56px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background: rgba(255, 255, 255, 0.02);
+            flex-shrink: 0;
+            z-index: 100;
+            position: relative;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-pill-toggle {
+            height: 38px;
+            width: 165px;
+            border-radius: 19px;
+            background: rgba(18, 22, 31, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 0;
+            overflow: hidden;
+            transition: width 0.32s cubic-bezier(0.25, 0.9, 0.35, 1.07),
+                background-color 0.25s ease,
+                border-color 0.25s ease;
+        }
+
+        .header-pill-toggle:hover {
+            border-color: rgba(196, 181, 253, 0.35);
+            background: rgba(26, 32, 44, 0.95);
+        }
+
+        .pill-morph-icon {
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .morph-line {
+            position: absolute;
+            width: 14px;
+            height: 2px;
+            background-color: #ffffff;
+            border-radius: 2px;
+            transform-origin: center;
+            transition: transform 0.32s cubic-bezier(0.25, 0.9, 0.35, 1.07);
+        }
+
+        .line-top {
+            transform: translateY(-3.5px) rotate(0deg);
+        }
+
+        .line-bottom {
+            transform: translateY(3.5px) rotate(0deg);
+        }
+
+        .pill-right-content {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            padding-right: 14px;
+            white-space: nowrap;
+            transition: opacity 0.2s ease, transform 0.24s ease;
+        }
+
+        .pill-divider {
+            width: 1px;
+            height: 14px;
+            background: rgba(255, 255, 255, 0.2);
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .pill-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .pill-label svg {
+            color: #94a3b8;
+        }
+
+        .header-pill-toggle.active {
+            width: 38px;
+            background: rgba(24, 28, 38, 0.95);
+            border-color: rgba(196, 181, 253, 0.4);
+        }
+
+        .header-pill-toggle.active .pill-right-content {
+            opacity: 0;
+            transform: translateX(-8px);
+            pointer-events: none;
+        }
+
+        .header-pill-toggle.active .line-top {
+            transform: translateY(0px) rotate(135deg);
+        }
+
+        .header-pill-toggle.active .line-bottom {
+            transform: translateY(0px) rotate(45deg);
+        }
+
+        .brand {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.95);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+        }
+
+        .brand-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--lavender-glow);
+            box-shadow: 0 0 8px var(--lavender-glow);
+        }
+
+        .session-status-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .session-pulsing-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #22c55e;
+            animation: sessionPulse 4s infinite cubic-bezier(0.4, 0, 0.6, 1);
+        }
+
+        @keyframes sessionPulse {
+            0% {
+                background-color: #22c55e;
+                box-shadow: 0 0 6px #22c55e, 0 0 16px rgba(34, 197, 94, 0.35), 0 0 28px rgba(34, 197, 94, 0.15);
+            }
+
+            33% {
+                background-color: #86efac;
+                box-shadow: 0 0 6px #86efac, 0 0 16px rgba(134, 239, 172, 0.35), 0 0 28px rgba(134, 239, 172, 0.15);
+            }
+
+            66% {
+                background-color: #17be9c;
+                box-shadow: 0 0 6px #06d4b8, 0 0 16px rgba(6, 182, 212, 0.35), 0 0 28px rgba(6, 182, 212, 0.15);
+            }
+
+            100% {
+                background-color: #22c55e;
+                box-shadow: 0 0 6px #22c55e, 0 0 16px rgba(34, 197, 94, 0.35), 0 0 28px rgba(34, 197, 94, 0.15);
+            }
+        }
+
+        .session-tooltip {
+            position: absolute;
+            right: 22px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #f8fafc;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .session-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -4px;
+            transform: translateY(-50%);
+            border-width: 4px 0 4px 4px;
+            border-style: solid;
+            border-color: transparent transparent transparent #0f172a;
+        }
+
+        .session-status-wrapper:hover .session-tooltip {
+            opacity: 1;
+            transform: translateY(-50%);
+        }
+
+        .horizontal-nav-bar {
+            height: 0;
+            opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
+            background: rgba(11, 15, 24, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            transition: height 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 90;
+        }
+
+        .horizontal-nav-bar.active {
+            height: 52px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .horizontal-bubbles-track {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .bubble-item {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            cursor: pointer;
+            transition: width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+                background-color 0.2s ease,
+                border-color 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .bubble-icon-circle {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            transition: color 0.2s ease;
+        }
+
+        .bubble-label {
+            white-space: nowrap;
+            font-size: 13px;
+            font-weight: 600;
+            color: #f8fafc;
+            padding-right: 14px;
+            opacity: 0;
+            transform: translateX(-4px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            user-select: none;
+        }
+
+        .bubble-item:hover {
+            width: 126px;
+            background: #273449;
+            border-color: rgba(196, 181, 253, 0.4);
+        }
+
+        .bubble-item:hover .bubble-icon-circle {
+            color: #ffffff;
+        }
+
+        .bubble-item:hover .bubble-label {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .bubble-item.active {
+            border-color: var(--lavender-glow);
+            background: #222f42;
+        }
+
+        .bubble-item.active .bubble-icon-circle {
+            color: var(--lavender-glow);
+        }
+
+        /* LAYOUT & SCROLL CONTAINER REPAIRS */
+        .app-main-body,
+        .content-area {
+            flex: 1;
+            height: calc(100vh - 56px);
+            display: flex;
+            overflow: hidden;
+            position: relative;
+            z-index: 12;
+            min-height: 0;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
+        .view-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none !important;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            overflow: hidden;
+            min-height: 0;
+            min-width: 0;
+            box-sizing: border-box;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+
+        .view-panel.active {
+            display: flex !important;
+            opacity: 1;
+            pointer-events: auto !important;
+            visibility: visible !important;
+        }
+
+        #query-view {
+            padding: 16px 20px;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
+        .split-layout {
+            display: flex;
+            gap: 18px;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            min-width: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            min-height: 0;
+            min-width: 0;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .pane-header {
+            height: 46px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(255, 255, 255, 0.02);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .pane-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--lavender-glow);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pane-meta {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pane-left,
+        .query-window-pane,
+        .feed-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            min-width: 0;
+            height: 100%;
+        }
+
+        .pane-meta-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .query-window-body {
+            flex: 1 1 0%;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px 20px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            scrollbar-width: thin;
+            scrollbar-color: #374151 transparent;
+        }
+
+        .query-window-body::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .query-window-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .query-window-body::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+
+        .query-window-body::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+
+        .query-empty-state {
+            margin: auto;
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .query-empty-state svg {
+            width: 38px;
+            height: 38px;
+            stroke: var(--lavender-glow);
+            opacity: 0.35;
+        }
+
+        .query-empty-state p {
+            font-size: 0.84rem;
+            max-width: 320px;
+            line-height: 1.5;
+        }
+
+        .query-display-card {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+            max-width: 100%;
+            animation: fadeInCard 0.2s ease forwards;
+        }
+
+        .query-feed-history {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+        }
+
+        @keyframes fadeInCard {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .query-prompt-unboxed {
+            font-size: 0.84rem;
+            color: #cbd5e1;
+            font-weight: 500;
+            line-height: 1.4;
+            padding: 0 2px;
+            margin-bottom: 2px;
+            word-break: break-word;
+        }
+
+        .query-prompt-unboxed .prompt-label {
+            font-weight: 700;
+            color: #a78bfa;
+            letter-spacing: 0.04em;
+            margin-right: 4px;
+        }
+
+        .query-sql-box {
+            position: relative;
+            border: 1px solid #2d2d3f;
+            background: #090c14;
+            border-radius: 8px;
+            padding: 13px 15px;
+            padding-bottom: 40px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+            max-width: 100%;
+        }
+
+        .sql-copy-container {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            display: inline-flex;
+            align-items: center;
+            z-index: 30;
+        }
+
+        .copy-feedback-tooltip {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999999;
+            background: #1e2433;
+            border: 1px solid #2d2d3f;
+            color: #e2e8f0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            white-space: nowrap;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .copy-feedback-tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .sql-copy-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: var(--text-muted);
+            padding: 4px 10px;
+            height: 26px;
+            border-radius: 6px;
+            cursor: pointer !important;
+            font-size: 0.72rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.18s ease;
+            backdrop-filter: blur(6px);
+            pointer-events: auto !important;
+            user-select: none;
+        }
+
+        .sql-copy-btn * {
+            pointer-events: none;
+            cursor: pointer !important;
+        }
+
+        .sql-copy-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.18);
+            border-color: #4b5563;
+            cursor: pointer !important;
+        }
+
+        /* BOTTOM LEFT TOAST NOTIFICATION */
+        .bottom-left-toast {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            z-index: 999999;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 14px;
+            background: rgba(15, 23, 42, 0.94);
+            border: 1px solid rgba(74, 222, 128, 0.5);
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 0.8rem;
+            font-weight: 600;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 14px rgba(74, 222, 128, 0.2);
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(16px) scale(0.95);
+            transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+        }
+
+        .bottom-left-toast.fly-in {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .bottom-left-toast.fly-out {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.96);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .bottom-left-toast .toast-tick {
+            color: #4ade80;
+            font-weight: 700;
+            font-size: 0.95rem;
+            line-height: 1;
+        }
+
+        .query-sql-box pre,
+        .query-sql-box code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #f1f5f9;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            max-width: 100%;
+            margin: 0;
+            user-select: text;
+            display: block;
+        }
+
+        .status-badge {
+            font-size: 0.68rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-family: var(--font-mono);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-muted);
+        }
+
+        .status-badge.running {
+            color: var(--lavender-glow);
+            border-color: rgba(196, 181, 253, 0.4);
+            background: rgba(196, 181, 253, 0.1);
+        }
+
+        .status-badge.success {
+            color: #4ade80;
+            border-color: rgba(74, 222, 128, 0.4);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .status-badge.error {
+            color: #f87171;
+            border-color: rgba(248, 113, 113, 0.4);
+            background: rgba(248, 113, 113, 0.1);
+        }
+
+        .input-bar {
+            display: flex;
+            align-items: center;
+            border-top: 1px solid var(--border-subtle);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 10px 14px;
+            gap: 10px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        .input-bar:focus-within {
+            border-top-color: rgba(196, 181, 253, 0.4);
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        #query-prompt {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            outline: none;
+            font-size: 0.88rem;
+            font-family: var(--font-main);
+            resize: none;
+            max-height: 110px;
+            min-height: 24px;
+            line-height: 1.5;
+            padding: 4px 2px;
+            pointer-events: auto;
+        }
+
+        #query-prompt::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-master-btn {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border: 1px solid rgba(196, 181, 253, 0.4);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            cursor: pointer;
+            box-shadow: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+            pointer-events: auto;
+        }
+
+        .send-master-btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: none;
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .send-master-btn:active {
+            transform: translateY(0) scale(0.97);
+        }
+
+        .right-header-tabs {
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+
+        .sub-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0 14px;
+            height: 100%;
+            font-size: 0.76rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            outline: none;
+            text-decoration: none;
+        }
+
+        .sub-tab-btn:hover {
+            color: #f8fafc;
+        }
+
+        .sub-tab-btn.active {
+            color: #f8fafc;
+        }
+
+        .sub-tab-btn .tab-underline {
+            position: absolute;
+            bottom: 0px;
+            left: 10px;
+            right: 10px;
+            height: 2px;
+            background: #c084fc;
+            box-shadow: none;
+            border-radius: 2px;
+            transform: scaleX(0);
+            transform-origin: right;
+            transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+            pointer-events: none;
+        }
+
+        .sub-tab-btn:hover .tab-underline,
+        .sub-tab-btn:focus-visible .tab-underline {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+
+        .sub-tab-btn.active .tab-underline {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+
+        .tab-divider-line {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.18);
+            margin: 0 4px;
+            align-self: center;
+        }
+
+        .zoom-slider-container {
+            display: flex;
+            align-items: center;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        #table-zoom-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 76px;
+            height: 3px;
+            background: #1e293b;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #table-zoom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #a78bfa;
+            box-shadow: none;
+            cursor: pointer;
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        #table-zoom-slider::-moz-range-thumb {
+            width: 7px;
+            height: 7px;
+            border: none;
+            border-radius: 50%;
+            background: #a78bfa;
+            cursor: pointer;
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        #table-zoom-slider::-webkit-slider-thumb:hover,
+        #table-zoom-slider::-moz-range-thumb:hover {
+            transform: scale(1.3);
+            background: #c4b5fd;
+        }
+
+        .pane-right,
+        .results-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            min-width: 0;
+            height: 100%;
+        }
+
+        .right-tab-viewport {
+            flex: 1;
+            position: relative;
+            display: flex;
+            min-height: 0;
+            min-width: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        .query-results-container,
+        .right-tab-panel {
+            position: absolute;
+            inset: 0;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            flex-direction: column;
+            padding: 16px;
+            min-height: 0;
+            min-width: 0;
+            height: 100%;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .query-results-container.active,
+        .right-tab-panel.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        #explain-tab-content {
+            overflow: auto;
+            padding: 16px;
+            height: 100%;
+            min-height: 0;
+        }
+
+        /* SCROLLABLE TABLE WRAPPER */
+        .table-scroll-wrapper,
+        .results-table-wrapper,
+        .table-scaling-wrapper {
+            flex: 1 1 0%;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            min-height: 0;
+            position: relative;
+            overflow-x: auto;
+            overflow-y: auto;
+            box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(167, 139, 250, 0.3) rgba(15, 23, 42, 0.4);
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar,
+        #explain-tab-content::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-track,
+        #explain-tab-content::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 4px;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-thumb,
+        #explain-tab-content::-webkit-scrollbar-thumb {
+            background: rgba(167, 139, 250, 0.25);
+            border-radius: 4px;
+            border: 1px solid rgba(167, 139, 250, 0.1);
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-thumb:hover,
+        #explain-tab-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(196, 181, 253, 0.45);
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+
+        .table-empty-state {
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            text-align: center;
+            gap: 12px;
+            padding: 40px 20px;
+        }
+
+        .table-empty-state svg {
+            width: 44px;
+            height: 44px;
+            stroke: var(--lavender-glow);
+            opacity: 0.3;
+        }
+
+        .table-empty-state p {
+            font-size: 0.82rem;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        .results-table,
+        .table-card {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid var(--lavender-subtle);
+            border-radius: 8px;
+            background: rgba(7, 10, 16, 0.6);
+        }
+
+        .table-card th {
+            background: #0e121d;
+            background: linear-gradient(180deg, rgba(35, 25, 52, 0.98) 0%, rgba(14, 18, 29, 0.98) 100%);
+            color: var(--pink-accent);
+            border-bottom: 1px solid var(--lavender-subtle);
+            border-right: 1px solid var(--lavender-subtle);
+            padding: calc(11px * var(--table-zoom)) calc(16px * var(--table-zoom));
+            font-size: calc(0.74rem * var(--table-zoom));
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .table-card th:last-child {
+            border-right: none;
+        }
+
+        .table-card td {
+            color: var(--grey-table-val);
+            font-family: var(--font-mono);
+            font-size: calc(0.8rem * var(--table-zoom));
+            padding: calc(10px * var(--table-zoom)) calc(16px * var(--table-zoom));
+            border-bottom: 1px solid rgba(196, 181, 253, 0.12);
+            border-right: 1px solid rgba(196, 181, 253, 0.12);
+            white-space: nowrap;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .table-card td:last-child {
+            border-right: none;
+        }
+
+        .table-card tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table-card tr:hover td {
+            background: rgba(196, 181, 253, 0.04);
+            color: #cbd5e1;
+        }
+
+        @keyframes pixelatedCellPop {
+            0% {
+                opacity: 0;
+                filter: blur(8px);
+                transform: scale(0.95);
+            }
+
+            100% {
+                opacity: 1;
+                filter: blur(0);
+                transform: scale(1);
+            }
+        }
+
+        .pixel-pop-cell {
+            animation: pixelatedCellPop 200ms ease-out both;
+            will-change: opacity, filter, transform;
+        }
+
+        /* EXPLAIN CARD STYLING */
+        .explain-card {
+            background: rgba(18, 22, 31, 0.7);
+            border: 1px solid rgba(192, 132, 252, 0.2);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            padding: 18px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            flex-shrink: 0;
+        }
+
+        .explain-card-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .explain-card-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.03em;
+        }
+
+        .lavender-bullet {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #c084fc;
+            box-shadow: none;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .explain-card-text {
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .explain-divider {
+            height: 1px;
+            background: rgba(192, 132, 252, 0.15);
+            margin: 4px 0;
+        }
+
+        .explain-tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .target-tag {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(192, 132, 252, 0.14);
+            border: 1px solid rgba(192, 132, 252, 0.35);
+            color: #f8fafc;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            padding: 4px 12px;
+            border-radius: 6px;
+            box-shadow: none;
+        }
+
+        .target-tag::before {
+            content: "[ ";
+            color: #c084fc;
+            font-weight: 700;
+        }
+
+        .target-tag::after {
+            content: " ]";
+            color: #c084fc;
+            font-weight: 700;
+        }
+
+        .explain-bullets {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .explain-bullets li {
+            position: relative;
+            padding-left: 20px;
+            font-size: 0.84rem;
+            color: #f8fafc;
+            line-height: 1.6;
+        }
+
+        .explain-bullets li::before {
+            content: "•";
+            position: absolute;
+            left: 2px;
+            color: #c084fc;
+            text-shadow: none;
+            font-size: 1.15rem;
+            line-height: 1.2;
+        }
+
+        .plan-step-num {
+            font-weight: 700;
+            color: var(--lavender-glow);
+            margin-right: 4px;
+        }
+
+        /* UPLOAD & CLEAN PANELS */
+        #upload-view {
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 40px;
+        }
+
+        .upload-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 800px;
+            max-width: 90%;
+            height: 380px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .upload-section {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            color: rgba(255, 255, 255, 0.7);
+            padding: 24px;
+        }
+
+        .upload-section:hover {
+            background: rgba(196, 181, 253, 0.04);
+            color: #ffffff;
+        }
+
+        .vertical-divider {
+            width: 1px;
+            height: 60%;
+            background: var(--border-subtle);
+        }
+
+        .icon-mono {
+            width: 38px;
+            height: 38px;
+            stroke: currentColor;
+            stroke-width: 1.2;
+            fill: none;
+            opacity: 0.5;
+            margin-bottom: 14px;
+            transition: opacity 0.2s ease, stroke 0.2s ease;
+        }
+
+        .upload-section:hover .icon-mono {
+            opacity: 1;
+            stroke: var(--lavender-glow);
+        }
+
+        .section-label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        #schema-input-area {
+            display: none;
+            width: 88%;
+            max-width: 700px;
+            flex-direction: column;
+            gap: 14px;
+            margin: auto;
+        }
+
+        #schema-text-input {
+            width: 100%;
+            height: 180px;
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid var(--lavender-subtle);
+            color: var(--text-main);
+            padding: 14px;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            resize: none;
+            outline: none;
+        }
+
+        #schema-text-input:focus {
+            border-color: var(--lavender-glow);
+            box-shadow: 0 0 0 2px rgba(196, 181, 253, 0.2);
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .action-btn {
+            background: rgba(196, 181, 253, 0.12);
+            border: 1px solid var(--lavender-subtle);
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(196, 181, 253, 0.24);
+            border-color: var(--lavender-glow);
+        }
+
+        .action-btn.secondary {
+            background: transparent;
+            color: var(--text-muted);
+            border-color: var(--border-subtle);
+        }
+
+        .action-btn.secondary:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #clean-view {
+            align-items: center;
+            justify-content: center;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* SCHEMA VIEW CARDS */
+        .schema-table-card {
+            background: rgba(11, 15, 24, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow: hidden;
+            animation: fadeInCard 0.22s ease forwards;
+        }
+
+        .schema-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 16px;
+            background: rgba(255, 255, 255, 0.025);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .schema-table-name {
+            font-size: 0.83rem;
+            font-weight: 700;
+            color: var(--lavender-glow);
+            letter-spacing: 0.03em;
+            font-family: var(--font-mono);
+        }
+
+        .schema-col-count {
+            font-size: 0.68rem;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .schema-dict-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .schema-dict-table th {
+            font-size: 0.67rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-muted);
+            padding: 7px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .schema-dict-table td {
+            padding: 6px 14px;
+            font-size: 0.78rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: middle;
+        }
+
+        .schema-dict-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .schema-col-name {
+            color: #e2e8f0;
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+        }
+
+        .schema-type-tag {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.28);
+            color: #a5b4fc;
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            padding: 1px 7px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .schema-keys-cell {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .schema-key-badge {
+            display: inline-block;
+            font-size: 0.64rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            padding: 1px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.04em;
+        }
+
+        .schema-key-badge.pk {
+            background: rgba(192, 132, 252, 0.18);
+            border: 1px solid rgba(192, 132, 252, 0.38);
+            color: #e879f9;
+        }
+
+        .schema-key-badge.fk {
+            background: rgba(59, 130, 246, 0.13);
+            border: 1px solid rgba(59, 130, 246, 0.28);
+            color: #93c5fd;
+        }
+
+        /* INSTANT WIPE FADE ANIMATION */
+        .wipe-fading {
+            transition: opacity 1.3s ease-out, filter 1.3s ease-out !important;
+            opacity: 0 !important;
+            filter: blur(4px) !important;
+            pointer-events: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- RIBBON GLOW WEBGL BACKGROUND -->
+    <div class="ribbon-bg-container">
+        <canvas id="ribbon-canvas"></canvas>
+        <div class="ribbon-overlay"></div>
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loader-overlay">
+        <canvas id="pixel-canvas"></canvas>
+        <div class="loader-content" id="loaderContent">
+            <div class="logo-wrapper">
+                <div class="glow-halo"></div>
+
+                <svg class="ring-svg" id="ringSvg" viewBox="0 0 140 140">
+                    <circle class="ring-bg" cx="70" cy="70" r="65"></circle>
+                    <circle class="ring-progress" id="progressRing" cx="70" cy="70" r="65"></circle>
+                </svg>
+
+                <div class="rapid-spin-ring" id="rapidSpinRing"></div>
+
+                <div class="static-logo">
+                    MY
+                    <span>SQL</span>
+                </div>
+            </div>
+            <div class="loading-text" id="loadingText">Initializing environment...</div>
+        </div>
+    </div>
+
+    <!-- MAIN WORKSPACE FRAME -->
+    <div class="app-window">
+        <div class="window-header">
+            <div class="header-left">
+                <button class="header-pill-toggle" id="headerPillToggle" type="button" aria-label="Toggle Navigation">
+                    <div class="pill-morph-icon">
+                        <div class="morph-line line-top"></div>
+                        <div class="morph-line line-bottom"></div>
+                    </div>
+                    <div class="pill-right-content">
+                        <div class="pill-divider"></div>
+                        <div class="pill-label">
+                            <span id="pill-icon-holder">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                                </svg>
+                            </span>
+                            <span id="pill-label-text">Workspace</span>
+                        </div>
+                    </div>
+                </button>
+
+                <div class="brand">
+                    <span class="brand-dot"></span>
+                    mySQL Workbench
+                </div>
+            </div>
+
+            <div class="session-status-wrapper">
+                <div class="session-pulsing-dot"></div>
+                <div class="session-tooltip">Session online</div>
+            </div>
+        </div>
+
+        <div class="horizontal-nav-bar" id="horizontalNavBar">
+            <div class="horizontal-bubbles-track">
+                <div class="bubble-item active" id="bubbleWorkspace" onclick="selectNavOption('query')">
+                    <div class="bubble-icon-circle">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                    </div>
+                    <span class="bubble-label">Workspace</span>
+                </div>
+
+                <div class="bubble-item" id="bubbleUpload" onclick="selectNavOption('upload')">
+                    <div class="bubble-icon-circle">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                    </div>
+                    <span class="bubble-label">Upload</span>
+                </div>
+
+                <div class="bubble-item" id="bubbleSchema" onclick="selectNavOption('schema')">
+                    <div class="bubble-icon-circle">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                        </svg>
+                    </div>
+                    <span class="bubble-label">Schema</span>
+                </div>
+
+                <div class="bubble-item" id="bubbleClean" onclick="triggerInstantWipe()">
+                    <div class="bubble-icon-circle">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                            </path>
+                        </svg>
+                    </div>
+                    <span class="bubble-label">Clean</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="view-panel active" id="query-view">
+                <div class="split-layout">
+                    <!-- LEFT PANE: QUERY WINDOW -->
+                    <div class="pane pane-left query-window-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">Query Window</span>
+                            <div class="pane-meta-group">
+                                <span class="pane-meta" id="query-dialect-badge">MySQL</span>
+                            </div>
+                        </div>
+
+                        <div class="query-window-body" id="query-window-container">
+                            <div class="query-empty-state" id="query-empty-state">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                                </svg>
+                                <p>No query executed yet. Enter your request in plain text below to generate and execute SQL.</p>
+                            </div>
+
+                            <div class="query-feed-history" id="query-feed-history"></div>
+                        </div>
+
+                        <div class="input-bar">
+                            <textarea id="query-prompt" rows="1" placeholder="Write query request in plain text..."
+                                autofocus></textarea>
+                            <button type="button" class="send-master-btn" id="send-master-btn" title="Execute Query"
+                                onclick="unifiedExecuteQuery()">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PANE -->
+                    <div class="pane pane-right results-pane">
+                        <div class="pane-header">
+                            <div class="right-header-tabs">
+                                <button type="button" class="sub-tab-btn active" id="tab-btn-results"
+                                    onclick="switchRightTab('results')">
+                                    <span class="tab-btn-text">QUERY RESULTS</span>
+                                    <span class="tab-underline"></span>
+                                </button>
+                                <div class="tab-divider-line"></div>
+                                <button type="button" class="sub-tab-btn" id="tab-btn-explain"
+                                    onclick="switchRightTab('explain')">
+                                    <span class="tab-btn-text">QUERY EXPLAIN</span>
+                                    <span class="tab-underline"></span>
+                                </button>
+                            </div>
+
+                            <div class="pane-meta">
+                                <span id="table-row-count">0 rows loaded</span>
+                                <div class="zoom-slider-container">
+                                    <input type="range" min="0.70" max="1.30" step="any" value="1.0"
+                                        id="table-zoom-slider" title="Scale Table Zoom">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="right-tab-viewport">
+                            <div class="right-tab-panel query-results-container active" id="results-tab-content">
+                                <div class="table-empty-state" id="table-empty-state">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                                    </svg>
+                                    <p>Submit a query on the left to populate the results table.</p>
+                                </div>
+
+                                <div class="table-scaling-wrapper results-table-wrapper table-scroll-wrapper"
+                                    id="table-wrapper">
+                                    <table class="table-card results-table" id="results-table" style="display: none;">
+                                        <thead id="table-head"></thead>
+                                        <tbody id="table-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="right-tab-panel" id="explain-tab-content">
+                                <!-- Empty state: shown before first query -->
+                                <div class="table-empty-state" id="explain-empty-state">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                    <p>Run a query to generate its explanation breakdown.</p>
+                                </div>
+                                <!-- Explain card: hidden until first query -->
+                                <div class="explain-card" id="explain-main-card" style="display: none;">
+                                    <div class="explain-card-section">
+                                        <div class="explain-card-title">
+                                            <span class="lavender-bullet"></span> Objective
+                                        </div>
+                                        <p class="explain-card-text" id="explain-objective"></p>
+                                    </div>
+
+                                    <div class="explain-divider"></div>
+
+                                    <div class="explain-card-section">
+                                        <div class="explain-card-title">
+                                            <span class="lavender-bullet"></span> Target Tables
+                                        </div>
+                                        <div class="explain-tags-container" id="explain-target-tables"></div>
+                                    </div>
+
+                                    <div class="explain-divider"></div>
+
+                                    <div class="explain-card-section">
+                                        <div class="explain-card-title">
+                                            <span class="lavender-bullet"></span> Execution Sequence
+                                        </div>
+                                        <ul class="explain-bullets" id="explain-bullet-list"></ul>
+                                    </div>
+
+                                    <div class="explain-divider"></div>
+
+                                    <div class="explain-card-section">
+                                        <div class="explain-card-title">
+                                            <span class="lavender-bullet"></span> Plain English Explanation
+                                        </div>
+                                        <ul class="explain-bullets" id="explain-plain-english-list"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UPLOAD PANEL -->
+            <div class="view-panel" id="upload-view">
+                <div class="upload-wrapper" id="upload-main-card">
+                    <div class="upload-section" onclick="toggleSchemaInput(true)">
+                        <svg class="icon-mono" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        <span class="section-label">Paste Schema</span>
+                    </div>
+
+                    <div class="vertical-divider"></div>
+
+                    <div class="upload-section" onclick="triggerPhotoUpload()">
+                        <svg class="icon-mono" viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <span class="section-label">Upload Diagram / Photo</span>
+                        <input type="file" id="file-input" accept="image/*" onchange="uploadPhoto(this.files[0])">
+                    </div>
+                </div>
+
+                <div id="schema-input-area">
+                    <textarea id="schema-text-input"
+                        placeholder="CREATE TABLE employees (&#10;    id INT PRIMARY KEY,&#10;    name VARCHAR(100),&#10;    department_id INT,&#10;    salary DECIMAL(10,2)&#10;);"></textarea>
+                    <div class="button-row">
+                        <button class="action-btn secondary" type="button"
+                            onclick="toggleSchemaInput(false)">Cancel</button>
+                        <button class="action-btn" type="button" id="submit-schema-btn" onclick="submitSchema()">Submit
+                            Schema</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLEAN PANEL -->
+            <div class="view-panel" id="clean-view">
+                <div style="margin: auto; text-align: center; max-width: 400px;">
+                    <div
+                        style="width: 50px; height: 50px; border-radius: 50%; background: rgba(196, 181, 253, 0.1); border: 1px solid var(--lavender-subtle); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lavender-glow)"
+                            stroke-width="1.8">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                            </path>
+                        </svg>
+                    </div>
+                    <p style="color: var(--text-main); font-size: 0.95rem; font-weight: 600; margin-bottom: 6px;">Reset
+                        Workspace</p>
+                    <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 20px; line-height: 1.5;">
+                        Wipes all currently loaded schemas, active sessions, and temporary SQLite tables.</p>
+                    <button class="action-btn" type="button" onclick="resetBackendWorkspace()">Confirm Workspace
+                        Clear</button>
+                </div>
+            </div>
+
+            <!-- SCHEMA VIEW PANEL -->
+            <div class="view-panel" id="schema-view" style="overflow-y: auto; padding: 20px;">
+                <div id="schema-grid-container" style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                    gap: 16px;
+                    align-items: start;
+                    width: 100%;
+                ">
+                    <div id="schema-empty-state" style="
+                        grid-column: 1 / -1;
+                        margin: auto;
+                        text-align: center;
+                        color: var(--text-muted);
+                        padding: 60px 20px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 12px;
+                    ">
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--lavender-glow)" stroke-width="1.5" opacity="0.35">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                        </svg>
+                        <p style="font-size: 0.82rem; max-width: 280px; line-height: 1.5;">No schema loaded. Upload a schema via the Upload tab to visualise your tables here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIBBON GLOW WEBGL SHADER SCRIPT -->
+    <script>
+        (function initRibbonGlow() {
+            const canvas = document.getElementById('ribbon-canvas');
+            if (!canvas) return;
+
+            const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false });
+            if (!gl) return;
+
+            const MAX_DPR = 2;
+            const LAYERS = 84.0;
+            const TWIST = 1.250;
+            const DRAG = 0.180;
+
+            const VERT_SRC = `#version 300 es
+            const vec2 P[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+            void main() { gl_Position = vec4(P[gl_VertexID], 0.0, 1.0); }
+            `;
+
+            const FIELD_SRC = `#version 300 es
+            precision highp float;
+            uniform vec2 uRes;
+            uniform float uTime;
+            uniform vec3 uC1;
+            uniform vec3 uC2;
+            uniform float uSize;
+            uniform float uAngle;
+            uniform vec2 uMouse;
+            uniform float uOn;
+            uniform float uReach;
+            uniform vec2 uVel;
+            out vec4 o;
+
+            const float LAYERS = ${LAYERS.toFixed(1)};
+            const float TWIST = ${TWIST.toFixed(3)};
+            const float DRAG = ${DRAG.toFixed(3)};
+            const float GAIN = 0.62;
+            const vec2 CENTRE = vec2(-0.62, 0.24);
+            const float TILT = 0.6;
+            const float ZOOM = 1.05;
+            const float THETA = 2.13;
+            const float SHEAR = 0.963;
+            const float SHRINK = 0.953;
+            const vec2 WARP_FREQ = vec2(0.42, 2.4);
+            const vec2 WARP_AMP = vec2(0.13, 0.027);
+            const vec2 ASPECT = vec2(2.1, 0.17);
+            const float OFFSET = 0.36;
+            const float GLOW = 0.0021;
+            const float SOFT = 0.0019;
+            const float FALLOFF = 0.37;
+            const float PHASE = 12.0;
+            const float CYCLE = 0.16;
+            const float HUE_TRAVEL = 2.0;
+
+            mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+
+            void main() {
+              vec2 R = uRes;
+              vec2 pos = (gl_FragCoord.xy - 0.5 * R) / R.y;
+
+              vec2 d = pos - uMouse;
+              float w = uOn * exp(-dot(d, d) / (uReach * uReach));
+              if (w > 1e-4) pos = uMouse + rot(w * TWIST) * d * (1.0 - 0.3 * min(w, 1.0)) - uVel * min(w, 1.0) * DRAG;
+
+              pos = rot(uAngle) * pos / uSize;
+              float t = uTime * 0.49 + PHASE;
+              float breath = (-sin(uTime * 0.735) + sin(uTime * 0.49 + 1.0)) * 0.25 + 0.5;
+              vec2 u = rot(TILT) * ((pos - CENTRE) * (ZOOM - breath * 0.085));
+              mat2 fold = mat2(cos(THETA), sin(THETA), -SHEAR, cos(THETA));
+
+              vec3 col = vec3(0.0);
+              for (float i = 1.0; i <= LAYERS; i += 1.0) {
+                u.x -= sin(u.y * WARP_FREQ.x + t + i * 0.007) * WARP_AMP.x;
+                u.y -= sin(u.x * WARP_FREQ.y - t + i * 0.02) * WARP_AMP.y;
+                u = fold * u * SHRINK;
+                vec2 q = (u - vec2(OFFSET + breath * 0.1, 0.0)) * ASPECT;
+                float g = GLOW / (dot(q, q) + SOFT) * (0.25 + breath * 0.4);
+                float r = length(u);
+                float k = sin(i * CYCLE + t * 1.2 + r * HUE_TRAVEL) * 0.5 + 0.5;
+                col += g * mix(uC1, uC2, k) * (0.62 + 0.5 * k) * exp2(-r * FALLOFF);
+              }
+              vec3 x = max(col * GAIN, 0.0);
+              col = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+              col = pow(clamp(col, 0.0, 1.0), vec3(0.85, 0.92, 0.98));
+              col *= 1.0 - smoothstep(0.5, 1.6, length(pos)) * 0.07;
+              o = vec4(col, 1.0);
+            }
+            `;
+
+            const FINISH_SRC = `#version 300 es
+            precision highp float;
+            uniform sampler2D uField;
+            uniform vec2 uRes;
+            uniform float uTime;
+            uniform vec3 uBg;
+            uniform float uPaper;
+            out vec4 o;
+
+            float ign(vec2 p, float f) { p += 5.588238 * mod(f, 64.0); return fract(52.9829189 * fract(0.06711056 * p.x + 0.00583715 * p.y)); }
+
+            void main() {
+              vec2 frag = gl_FragCoord.xy;
+              vec3 L = max(texture(uField, frag / uRes).rgb, 0.0);
+
+              vec3 dark = uBg + L * (1.0 - uBg);
+              float strength = clamp(max(L.r, max(L.g, L.b)), 0.0, 1.0);
+              vec3 paper = uBg * (1.0 - strength) + L * 0.96;
+              vec3 col = mix(dark, paper, uPaper);
+              col += (ign(frag, floor(uTime * 24.0)) - 0.5) / 255.0;
+              o = vec4(clamp(col, 0.0, 1.0), 1.0);
+            }
+            `;
+
+            function link(frag, label) {
+                const shader = (type, src) => {
+                    const sh = gl.createShader(type);
+                    if (!sh) return null;
+                    gl.shaderSource(sh, src);
+                    gl.compileShader(sh);
+                    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+                        gl.deleteShader(sh);
+                        return null;
+                    }
+                    return sh;
+                };
+                const vs = shader(gl.VERTEX_SHADER, VERT_SRC);
+                const fs = shader(gl.FRAGMENT_SHADER, frag);
+                if (!vs || !fs) return null;
+                const prog = gl.createProgram();
+                if (!prog) return null;
+                gl.attachShader(prog, vs);
+                gl.attachShader(prog, fs);
+                gl.linkProgram(prog);
+                gl.deleteShader(vs);
+                gl.deleteShader(fs);
+                if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+                    gl.deleteProgram(prog);
+                    return null;
+                }
+                return prog;
+            }
+
+            function locations(prog, names) {
+                const out = {};
+                for (const n of names) out[n] = gl.getUniformLocation(prog, n);
+                return out;
+            }
+
+            function fieldTarget() {
+                const fbo = gl.createFramebuffer();
+                let tex = null;
+                let w = 0;
+                let h = 0;
+                let half = !!gl.getExtension("EXT_color_buffer_float");
+                return {
+                    fbo,
+                    texture: () => tex,
+                    width: () => w,
+                    height: () => h,
+                    resize(nw, nh) {
+                        if (nw === w && nh === h && tex) return;
+                        for (let attempt = 0; attempt < 2; attempt++) {
+                            if (tex) gl.deleteTexture(tex);
+                            tex = gl.createTexture();
+                            gl.bindTexture(gl.TEXTURE_2D, tex);
+                            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                            gl.texImage2D(gl.TEXTURE_2D, 0, half ? gl.RGBA16F : gl.RGBA8, nw, nh, 0, gl.RGBA, half ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+                            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+                            const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+                            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                            if (ok || !half) break;
+                            half = false;
+                        }
+                        w = nw;
+                        h = nh;
+                    }
+                };
+            }
+
+            function parseColor(input) {
+                if (!input) return null;
+                let s = String(input).trim();
+                if (s.charAt(0) === "#") {
+                    let h = s.slice(1);
+                    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+                    if (h.length >= 6) {
+                        return [
+                            parseInt(h.slice(0, 2), 16) / 255,
+                            parseInt(h.slice(2, 4), 16) / 255,
+                            parseInt(h.slice(4, 6), 16) / 255
+                        ];
+                    }
+                }
+                return null;
+            }
+
+            const field = link(FIELD_SRC, "field");
+            const finish = link(FINISH_SRC, "finish");
+            if (!field || !finish) return;
+
+            const uf = locations(field, ["uRes", "uTime", "uC1", "uC2", "uSize", "uAngle", "uMouse", "uOn", "uReach", "uVel"]);
+            const un = locations(finish, ["uField", "uRes", "uTime", "uBg", "uPaper"]);
+            const vao = gl.createVertexArray();
+            gl.bindVertexArray(vao);
+            const target = fieldTarget();
+
+            const config = {
+                background: "#07060b",
+                color1: "#6229AB",
+                color2: "#573DFF",
+                speed: 1.8,
+                size: 1.0,
+                angle: -Math.PI,
+                hover: 0.015,
+                reach: 340
+            };
+
+            const ptr = { tx: window.innerWidth * 0.5, ty: window.innerHeight * 0.5, inside: true };
+            window.addEventListener("pointermove", (e) => {
+                ptr.tx = e.clientX;
+                ptr.ty = e.clientY;
+                ptr.inside = true;
+            }, { passive: true });
+
+            let mx = window.innerWidth * 0.5;
+            let my = window.innerHeight * 0.5;
+            let vx = 0;
+            let vy = 0;
+            let on = 0;
+            let last = -1;
+            let clock = 0;
+
+            function render(now) {
+                requestAnimationFrame(render);
+                const dt = last < 0 ? 0 : Math.min(Math.max((now - last) / 1000, 0), 0.05);
+                last = now;
+                clock = (clock + dt * config.speed) % 3600;
+
+                const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+                const cw = window.innerWidth;
+                const ch = window.innerHeight;
+                const bw = Math.max(1, Math.round(cw * dpr));
+                const bh = Math.max(1, Math.round(ch * dpr));
+
+                if (canvas.width !== bw || canvas.height !== bh) {
+                    canvas.width = bw;
+                    canvas.height = bh;
+                }
+                target.resize(Math.max(1, Math.round(bw / 2)), Math.max(1, Math.round(bh / 2)));
+
+                const present = ptr.inside ? 1 : 0;
+                if (present && on < 0.01) {
+                    mx = ptr.tx;
+                    my = ptr.ty;
+                }
+                on += (present - on) * (1 - Math.exp(-dt * 2.5));
+                const k = 1 - Math.exp(-dt * 8);
+                const nx = mx + (ptr.tx - mx) * k;
+                const ny = my + (ptr.ty - my) * k;
+                if (dt > 0) {
+                    const kv = 1 - Math.exp(-dt * 4);
+                    vx += ((nx - mx) / dt - vx) * kv;
+                    vy += ((ny - my) / dt - vy) * kv;
+                }
+                mx = nx;
+                my = ny;
+                const vLen = Math.hypot(vx, vy) / ch;
+                const vCap = vLen > 2 ? 2 / vLen : 1;
+
+                const c1 = parseColor(config.color1) || [0.38, 0.16, 0.67];
+                const c2 = parseColor(config.color2) || [0.34, 0.24, 1.0];
+                const bg = parseColor(config.background) || [0.03, 0.02, 0.04];
+                const bgLum = 0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2];
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+                gl.viewport(0, 0, target.width(), target.height());
+                gl.useProgram(field);
+                gl.uniform2f(uf.uRes, target.width(), target.height());
+                gl.uniform1f(uf.uTime, clock);
+                gl.uniform3f(uf.uC1, c1[0], c1[1], c1[2]);
+                gl.uniform3f(uf.uC2, c2[0], c2[1], c2[2]);
+                gl.uniform1f(uf.uSize, config.size);
+                gl.uniform1f(uf.uAngle, config.angle);
+                gl.uniform2f(uf.uMouse, (mx - cw / 2) / ch, (ch / 2 - my) / ch);
+                gl.uniform1f(uf.uOn, on * config.hover);
+                gl.uniform1f(uf.uReach, config.reach / ch);
+                gl.uniform2f(uf.uVel, (vx / ch) * vCap, (-vy / ch) * vCap);
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.viewport(0, 0, bw, bh);
+                gl.useProgram(finish);
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, target.texture());
+                gl.uniform1i(un.uField, 0);
+                gl.uniform2f(un.uRes, bw, bh);
+                gl.uniform1f(un.uTime, clock);
+                gl.uniform3f(un.uBg, bg[0], bg[1], bg[2]);
+                gl.uniform1f(un.uPaper, Math.min(Math.max((bgLum - 0.35) / 0.3, 0), 1));
+                gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+
+            requestAnimationFrame(render);
+        })();
+    </script>
+
+    <!-- APPLICATION CONTROLLER -->
+    <script>
+        const API_BASE = window.location.origin.includes('http')
+            ? `${window.location.origin}/api`
+            : "http://127.0.0.1:5000/api";
+
+        let isExecuting = false;
+
+        /* LOADING OVERLAY ANIMATION & FAILSAFE DISMISSAL */
+        (function initLoaderOverlay() {
+            const loaderOverlay = document.getElementById('loader-overlay');
+            if (!loaderOverlay) return;
+
+            function forceDismissLoader() {
+                if (loaderOverlay && loaderOverlay.style.display !== 'none') {
+                    loaderOverlay.style.display = 'none';
+                    const promptInput = document.getElementById('query-prompt');
+                    if (promptInput) promptInput.focus();
+                }
+            }
+
+            // Guaranteed failsafe timer (1.5 seconds max)
+            const failsafeTimer = setTimeout(forceDismissLoader, 1500);
+
+            try {
+                const ring = document.getElementById('progressRing');
+                const ringSvg = document.getElementById('ringSvg');
+                const rapidRing = document.getElementById('rapidSpinRing');
+                const loaderContent = document.getElementById('loaderContent');
+                const canvas = document.getElementById('pixel-canvas');
+                const ctx = canvas ? canvas.getContext('2d') : null;
+
+                const totalLength = 408;
+                let progress = 0;
+
+                const loadInterval = setInterval(() => {
+                    progress += 4;
+                    const offset = totalLength - (progress / 100) * totalLength;
+                    if (ring) ring.style.strokeDashoffset = offset;
+
+                    if (progress >= 100) {
+                        clearInterval(loadInterval);
+                        triggerRapidSpinAndDissolve();
+                    }
+                }, 16);
+
+                function triggerRapidSpinAndDissolve() {
+                    if (ringSvg) ringSvg.style.opacity = '0';
+                    if (rapidRing) rapidRing.classList.add('active');
+                    const textEl = document.getElementById('loadingText');
+                    if (textEl) textEl.innerText = "Environment Ready!";
+
+                    setTimeout(() => {
+                        if (loaderContent) loaderContent.style.opacity = '0';
+                        startPixelDissolve();
+                    }, 250);
+                }
+
+                function startPixelDissolve() {
+                    if (!canvas || !ctx) {
+                        clearTimeout(failsafeTimer);
+                        forceDismissLoader();
+                        return;
+                    }
+
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+
+                    const pixelSize = 28;
+                    const cols = Math.ceil(canvas.width / pixelSize);
+                    const rows = Math.ceil(canvas.height / pixelSize);
+                    const DURATION = 600;
+                    const pixels = [];
+
+                    for (let r = 0; r < rows; r++) {
+                        for (let c = 0; c < cols; c++) {
+                            pixels.push({
+                                x: c * pixelSize,
+                                y: r * pixelSize,
+                                startTime: Math.random() * (DURATION - 150)
+                            });
+                        }
+                    }
+
+                    loaderOverlay.style.background = "transparent";
+                    loaderOverlay.style.backdropFilter = "none";
+                    const animStart = performance.now();
+
+                    function renderPixelGrid(now) {
+                        const elapsed = now - animStart;
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        let remainingPixels = 0;
+
+                        for (let p of pixels) {
+                            if (elapsed < p.startTime) {
+                                ctx.fillStyle = "#07090e";
+                                ctx.fillRect(p.x, p.y, pixelSize - 1, pixelSize - 1);
+                                remainingPixels++;
+                            } else if (elapsed < p.startTime + 150) {
+                                const progressInPixel = (elapsed - p.startTime) / 150;
+                                const alpha = progressInPixel > 0.5 ? 0.2 : 0.6;
+                                ctx.fillStyle = `rgba(7, 9, 14, ${alpha})`;
+                                ctx.fillRect(p.x, p.y, pixelSize - 1, pixelSize - 1);
+                                remainingPixels++;
+                            }
+                        }
+
+                        if (elapsed < DURATION && remainingPixels > 0) {
+                            requestAnimationFrame(renderPixelGrid);
+                        } else {
+                            clearTimeout(failsafeTimer);
+                            forceDismissLoader();
+                        }
+                    }
+                    requestAnimationFrame(renderPixelGrid);
+                }
+            } catch (err) {
+                console.warn("Loader animation notice:", err);
+                clearTimeout(failsafeTimer);
+                forceDismissLoader();
+            }
+
+            window.addEventListener('resize', () => {
+                const canvas = document.getElementById('pixel-canvas');
+                if (canvas && loaderOverlay && loaderOverlay.style.display !== 'none') {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                }
+            });
+        })();
+
+        /* NAVIGATION CONTROL */
+        const headerPillToggle = document.getElementById('headerPillToggle');
+        const horizontalNavBar = document.getElementById('horizontalNavBar');
+        const pillLabelText = document.getElementById('pill-label-text');
+        const pillIconHolder = document.getElementById('pill-icon-holder');
+
+        const ICONS = {
+            query: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`,
+            upload: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`,
+            clean: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+            schema: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>`
+        };
+
+        headerPillToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleHorizontalMenu();
+        });
+
+        function toggleHorizontalMenu(forceState) {
+            const shouldOpen = forceState !== undefined ? forceState : !horizontalNavBar.classList.contains('active');
+            if (shouldOpen) {
+                horizontalNavBar.classList.add('active');
+                headerPillToggle.classList.add('active');
+            } else {
+                horizontalNavBar.classList.remove('active');
+                headerPillToggle.classList.remove('active');
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!headerPillToggle.contains(e.target) && !horizontalNavBar.contains(e.target)) {
+                toggleHorizontalMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                toggleHorizontalMenu(false);
+            }
+        });
+
+        function selectNavOption(tabName) {
+            document.querySelectorAll('.bubble-item').forEach(b => b.classList.remove('active'));
+
+            if (tabName === 'query') {
+                document.getElementById('bubbleWorkspace').classList.add('active');
+                pillLabelText.innerText = "Workspace";
+                pillIconHolder.innerHTML = ICONS.query;
+            } else if (tabName === 'upload') {
+                document.getElementById('bubbleUpload').classList.add('active');
+                pillLabelText.innerText = "Upload";
+                pillIconHolder.innerHTML = ICONS.upload;
+            } else if (tabName === 'clean') {
+                document.getElementById('bubbleClean').classList.add('active');
+                pillLabelText.innerText = "Clean";
+                pillIconHolder.innerHTML = ICONS.clean;
+            } else if (tabName === 'schema') {
+                document.getElementById('bubbleSchema').classList.add('active');
+                pillLabelText.innerText = "Schema";
+                pillIconHolder.innerHTML = ICONS.schema;
+            }
+
+            switchTab(tabName);
+            toggleHorizontalMenu(false);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.content-area > .view-panel').forEach(panel => panel.classList.remove('active'));
+            const targetPanel = document.getElementById(tabName + '-view');
+            if (targetPanel) targetPanel.classList.add('active');
+        }
+
+        function switchRightTab(tabName) {
+            const resultsBtn = document.getElementById('tab-btn-results');
+            const explainBtn = document.getElementById('tab-btn-explain');
+            const resultsPanel = document.getElementById('results-tab-content');
+            const explainPanel = document.getElementById('explain-tab-content');
+
+            if (tabName === 'results') {
+                resultsBtn.classList.add('active');
+                explainBtn.classList.remove('active');
+
+                explainPanel.classList.remove('active');
+                explainPanel.style.display = 'none';
+
+                resultsPanel.style.display = 'flex';
+                setTimeout(() => resultsPanel.classList.add('active'), 20);
+            } else {
+                explainBtn.classList.add('active');
+                resultsBtn.classList.remove('active');
+
+                resultsPanel.classList.remove('active');
+                resultsPanel.style.display = 'none';
+
+                explainPanel.style.display = 'flex';
+                setTimeout(() => explainPanel.classList.add('active'), 20);
+            }
+        }
+
+        /* TABLE ZOOM SLIDER */
+        const zoomSlider = document.getElementById('table-zoom-slider');
+        zoomSlider.addEventListener('input', (e) => {
+            const zoomVal = parseFloat(e.target.value) || 1.0;
+            document.documentElement.style.setProperty('--table-zoom', zoomVal);
+        });
+
+        /* INPUT INTERACTIVITY */
+        const queryInput = document.getElementById('query-prompt');
+
+        queryInput.addEventListener('input', () => {
+            queryInput.style.height = 'auto';
+            queryInput.style.height = Math.min(queryInput.scrollHeight, 110) + 'px';
+        });
+
+        queryInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) return;
+                e.preventDefault();
+                unifiedExecuteQuery();
+            }
+        });
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+
+        function stripSqlComments(sql) {
+            if (!sql) return "";
+            return sql
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .split('\n')
+                .map(line => line.replace(/--.*$/, '').trimEnd())
+                .filter(line => line.trim().length > 0)
+                .join('\n')
+                .trim();
+        }
+
+        /* REACTIVE STATE BINDING FOR QUERY WINDOW HISTORY */
+        const queryState = {
+            history: []
+        };
+
+        /* SCHEMA STATE */
+        const schemaState = {
+            tables: []
+        };
+
+        /* CLEAR BACKEND ON EVERY PAGE LOAD so stale schema never persists */
+        fetch(`${API_BASE}/reset`, { method: 'POST' }).catch(() => {});
+
+        function renderQueryFeed() {
+            const emptyState = document.getElementById('query-empty-state');
+            const feedContainer = document.getElementById('query-feed-history');
+
+            if (!queryState.history || queryState.history.length === 0) {
+                if (emptyState) emptyState.style.display = 'flex';
+                if (feedContainer) feedContainer.innerHTML = '';
+                return;
+            }
+
+            if (emptyState) emptyState.style.display = 'none';
+
+            if (feedContainer) {
+                feedContainer.innerHTML = queryState.history.map(item => `
+                    <div class="query-display-card" id="query-card-${item.id}">
+                        <div class="query-prompt-unboxed">
+                            <span class="prompt-label">PROMPT:</span> "${escapeHtml(item.prompt)}"
+                        </div>
+                        <div class="query-sql-box" id="sql-box-${item.id}">
+                            <pre class="sql-code">${item.status === 'generating' ? 'Generating SQL query from request...' : (item.status === 'error' ? 'Error: ' + escapeHtml(item.error || 'Failed to execute query') : escapeHtml(stripSqlComments(item.sql)))}</pre>
+                            <div class="sql-copy-container">
+                                <button type="button" class="sql-copy-btn" title="Copy SQL" onclick="copyHistoricalSQL('${item.id}')" style="${item.status === 'success' ? 'display: inline-flex;' : 'display: none;'}">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                    <span class="copy-btn-text">Copy</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+
+        function scrollToFeedBottom() {
+            const container = document.getElementById('query-window-container');
+            if (container) {
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        /* COPY SQL FEEDBACK */
+        let copyTooltipTimeout = null;
+        async function copyHistoricalSQL(queryId) {
+            const item = queryState.history.find(q => q.id === queryId);
+            const sqlText = item ? stripSqlComments(item.sql) : '';
+            if (!sqlText || sqlText.trim().startsWith('--')) return;
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(sqlText.trim());
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = sqlText.trim();
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                }
+
+                const tooltip = document.getElementById('copy-feedback-tooltip');
+                if (tooltip) {
+                    tooltip.classList.remove('show');
+                    void tooltip.offsetWidth;
+                    tooltip.classList.add('show');
+                    if (copyTooltipTimeout) clearTimeout(copyTooltipTimeout);
+                    copyTooltipTimeout = setTimeout(() => {
+                        tooltip.classList.remove('show');
+                    }, 1400);
+                }
+            } catch (err) {
+                console.error("Copy error:", err);
+            }
+        }
+
+        /* UNIFIED QUERY EXECUTION */
+        async function unifiedExecuteQuery() {
+            if (isExecuting) return;
+
+            const promptText = queryInput.value.trim();
+            const sendBtn = document.getElementById('send-master-btn');
+            const rowCountLabel = document.getElementById('table-row-count');
+
+            if (!promptText) {
+                queryInput.focus();
+                return;
+            }
+
+            isExecuting = true;
+            sendBtn.style.opacity = '0.5';
+            sendBtn.disabled = true;
+            rowCountLabel.innerText = "Querying...";
+
+            const queryId = 'q_' + Date.now();
+            const newQuery = {
+                id: queryId,
+                prompt: promptText,
+                status: 'generating',
+                sql: '',
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            };
+
+            queryState.history.push(newQuery);
+            renderQueryFeed();
+            scrollToFeedBottom();
+
+            try {
+                const res = await fetch(`${API_BASE}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: promptText })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || `Server error (${res.status})`);
+                }
+
+                const responseData = await res.json();
+                const cleanSql = stripSqlComments((responseData.sql || "").trim());
+                const rowCount = responseData.row_count !== undefined ? responseData.row_count : (responseData.data ? responseData.data.length : 0);
+
+                newQuery.status = 'success';
+                newQuery.sql = cleanSql;
+                newQuery.rowCount = rowCount;
+                newQuery.executionTime = responseData.execution_time_ms || 0;
+                newQuery.data = responseData;
+
+                renderQueryFeed();
+                scrollToFeedBottom();
+
+                renderResultsTable(responseData);
+                updateExplainCardStructured(promptText, cleanSql, responseData);
+                queryInput.value = '';
+                queryInput.style.height = 'auto';
+
+            } catch (err) {
+                console.error("Query Error:", err);
+                newQuery.status = 'error';
+                newQuery.error = err.message || "Failed to execute query";
+                renderQueryFeed();
+                scrollToFeedBottom();
+                rowCountLabel.innerText = "Error";
+            } finally {
+                isExecuting = false;
+                sendBtn.style.opacity = '1';
+                sendBtn.disabled = false;
+            }
+        }
+
+        /* RESULTS TABLE RENDERER */
+        function renderResultsTable(data) {
+            const emptyState = document.getElementById('table-empty-state');
+            const table = document.getElementById('results-table');
+            const thead = document.getElementById('table-head');
+            const tbody = document.getElementById('table-body');
+            const rowCountLabel = document.getElementById('table-row-count');
+
+            if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+                if (emptyState) emptyState.style.display = 'flex';
+                if (table) table.style.display = 'none';
+                if (rowCountLabel) rowCountLabel.innerText = "0 rows loaded";
+                return;
+            }
+
+            if (emptyState) emptyState.style.display = 'none';
+            if (table) table.style.display = 'table';
+
+            const rows = data.data;
+            const columns = data.columns || Object.keys(rows[0] || {});
+
+            if (rowCountLabel) {
+                rowCountLabel.innerText = `${rows.length} ${rows.length === 1 ? 'row' : 'rows'} loaded`;
+            }
+
+            thead.innerHTML = `<tr>${columns.map(col => `<th>${escapeHtml(col)}</th>`).join('')}</tr>`;
+
+            tbody.innerHTML = rows.map(row => {
+                const cells = columns.map(col => {
+                    const val = row[col];
+                    const displayVal = val === null || val === undefined ? 'NULL' : String(val);
+                    const randomDelay = Math.floor(Math.random() * 800);
+                    return `<td class="pixel-pop-cell" style="animation-delay: ${randomDelay}ms;">${escapeHtml(displayVal)}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+        }
+
+        /* EXPLAIN CARD BREAKDOWN */
+        function updateExplainCardStructured(promptText, sqlText, data) {
+            const objEl = document.getElementById('explain-objective');
+            const tablesEl = document.getElementById('explain-target-tables');
+            const bulletsEl = document.getElementById('explain-bullet-list');
+            const plainEnglishEl = document.getElementById('explain-plain-english-list');
+            const explainCard = document.getElementById('explain-main-card');
+            const explainEmpty = document.getElementById('explain-empty-state');
+
+            // Reveal card, hide empty state
+            if (explainCard) explainCard.style.display = '';
+            if (explainEmpty) explainEmpty.style.display = 'none';
+
+            if (objEl) {
+                objEl.innerText = data?.explanation?.objective || promptText || "SQL Query Execution Breakdown";
+            }
+
+            if (tablesEl) {
+                const tables = data?.explanation?.target_tables || extractTablesFromSQL(sqlText) || [];
+                tablesEl.innerHTML = tables.map(t => `<span class="target-tag">${escapeHtml(t)}</span>`).join('');
+            }
+
+            if (bulletsEl) {
+                const steps = data?.explanation?.steps || generateDefaultSteps(sqlText);
+                bulletsEl.innerHTML = steps.map((step, idx) => `
+                    <li><span class="plan-step-num">Step ${idx + 1}:</span> ${escapeHtml(step)}</li>
+                `).join('');
+            }
+
+            if (plainEnglishEl) {
+                const explanations = generatePlainEnglishExplanations(promptText, sqlText, data);
+                plainEnglishEl.innerHTML = explanations.map(exp => `
+                    <li>${exp}</li>
+                `).join('');
+            }
+
+            fetchExplainDetails(promptText, sqlText);
+        }
+
+        function formatExplainBullet(text) {
+            if (!text) return '';
+            if (/<(code|strong|em|b|i|span)/i.test(text)) {
+                return text;
+            }
+            let formatted = escapeHtml(text);
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+            formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            return formatted;
+        }
+
+        function generatePlainEnglishExplanations(promptText, sqlText, data) {
+            if (!sqlText) {
+                return ["Submit a query to generate step-by-step plain English explanations."];
+            }
+
+            const bullets = [];
+            const tables = extractTablesFromSQL(sqlText);
+            const fromTableStr = tables.length > 0 ? tables.join(', ') : 'the database';
+
+            // 1. Table scanning & SELECT projection
+            const selectMatch = sqlText.match(/SELECT\s+(.*?)\s+FROM/i);
+            if (selectMatch) {
+                const cols = selectMatch[1].trim();
+                if (cols === '*') {
+                    bullets.push(`Uses <code>SELECT *</code> to scan and retrieve all column attributes from table <strong>${escapeHtml(fromTableStr)}</strong>.`);
+                } else {
+                    bullets.push(`Uses <code>SELECT ${escapeHtml(cols.length > 70 ? cols.substring(0, 70) + '...' : cols)}</code> to extract specific target fields from table <strong>${escapeHtml(fromTableStr)}</strong>.`);
+                }
+            } else {
+                bullets.push(`Scans database table <strong>${escapeHtml(fromTableStr)}</strong> to fetch matching database records.`);
+            }
+
+            // 2. JOIN operations
+            if (sqlText.match(/JOIN/i)) {
+                const joinMatch = sqlText.match(/JOIN\s+([a-zA-Z0-9_]+)\s+ON\s+([^;\n]+)/i);
+                if (joinMatch) {
+                    bullets.push(`Executes a <code>JOIN ${escapeHtml(joinMatch[1])}</code> on <code>${escapeHtml(joinMatch[2])}</code> to correlate and merge records across related tables.`);
+                } else {
+                    bullets.push(`Executes <code>JOIN</code> operations to correlate matching records across foreign key relationships.`);
+                }
+            }
+
+            // 3. WHERE filter
+            if (sqlText.match(/WHERE/i)) {
+                const whereMatch = sqlText.match(/WHERE\s+([^;\n]+)/i);
+                const condStr = whereMatch ? ` (<code>${escapeHtml(whereMatch[1].trim())}</code>)` : '';
+                bullets.push(`Applies a <code>WHERE</code> filter${condStr} so MySQL only evaluates and returns rows matching your search criteria.`);
+            }
+
+            // 4. GROUP BY aggregation
+            if (sqlText.match(/GROUP BY/i)) {
+                const groupMatch = sqlText.match(/GROUP\s+BY\s+([^;\n]+)/i);
+                const groupStr = groupMatch ? ` (<code>${escapeHtml(groupMatch[1].trim())}</code>)` : '';
+                bullets.push(`Uses <code>GROUP BY${groupStr}</code> to group related rows and calculate aggregated metrics.`);
+            }
+
+            // 5. ORDER BY sorting
+            if (sqlText.match(/ORDER BY/i)) {
+                const orderMatch = sqlText.match(/ORDER\s+BY\s+([^;\n]+)/i);
+                const orderStr = orderMatch ? ` (<code>${escapeHtml(orderMatch[1].trim())}</code>)` : '';
+                bullets.push(`Applies <code>ORDER BY${orderStr}</code> to arrange the resulting records in the specified order.`);
+            }
+
+            // 6. LIMIT bounds
+            if (sqlText.match(/LIMIT/i)) {
+                const limitMatch = sqlText.match(/LIMIT\s+(\d+)/i);
+                const limitStr = limitMatch ? ` ${limitMatch[1]}` : '';
+                bullets.push(`Constrains the result set size with <code>LIMIT${limitStr}</code> for fast query retrieval and clean presentation.`);
+            }
+
+            // 7. Intent translation
+            bullets.push(`Translates your original goal (<em>"${escapeHtml(promptText || 'query request')}"</em>) into working, optimized MySQL database logic.`);
+
+            return bullets;
+        }
+
+        async function fetchExplainDetails(promptText, sqlText) {
+            if (!sqlText) return;
+            try {
+                const res = await fetch(`${API_BASE}/explain`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql: sqlText, prompt: promptText })
+                });
+                if (res.ok) {
+                    const expData = await res.json();
+                    if (expData && expData.explanation && Array.isArray(expData.explanation) && expData.explanation.length > 0) {
+                        const plainEnglishEl = document.getElementById('explain-plain-english-list');
+                        if (plainEnglishEl) {
+                            plainEnglishEl.innerHTML = expData.explanation.map(exp => `
+                                <li>${formatExplainBullet(exp)}</li>
+                            `).join('');
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log("Async explain notice:", e);
+            }
+        }
+
+        function extractTablesFromSQL(sql) {
+            if (!sql) return [];
+            const matches = sql.match(/(?:FROM|JOIN)\s+([a-zA-Z0-9_]+)/gi);
+            if (!matches) return [];
+            return [...new Set(matches.map(m => m.replace(/(?:FROM|JOIN)\s+/i, '').trim()))];
+        }
+
+        function generateDefaultSteps(sql) {
+            if (!sql) return ["Parse user request", "Generate SQL execution plan", "Retrieve result dataset"];
+            const steps = [];
+            if (sql.match(/SELECT/i)) steps.push("Select specified columns and attributes from the target dataset.");
+            if (sql.match(/FROM/i)) steps.push("Scan primary source table for candidate records.");
+            if (sql.match(/JOIN/i)) steps.push("Perform join condition across related schema tables.");
+            if (sql.match(/WHERE/i)) steps.push("Apply conditional filters to restrict matching rows.");
+            if (sql.match(/GROUP BY/i)) steps.push("Aggregate records according to specified grouping keys.");
+            if (sql.match(/ORDER BY/i)) steps.push("Sort resulting dataset based on requested order clause.");
+            if (sql.match(/LIMIT/i)) steps.push("Restrict maximum row count to specified limit.");
+            return steps.length > 0 ? steps : ["Execute standard query sequence and compile result rows."];
+        }
+
+        /* SCHEMA UPLOAD & CLEAN HANDLERS */
+        function toggleSchemaInput(show) {
+            const mainCard = document.getElementById('upload-main-card');
+            const schemaArea = document.getElementById('schema-input-area');
+            if (show) {
+                if (mainCard) mainCard.style.display = 'none';
+                if (schemaArea) schemaArea.style.display = 'flex';
+            } else {
+                if (mainCard) mainCard.style.display = 'flex';
+                if (schemaArea) schemaArea.style.display = 'none';
+            }
+        }
+
+        function triggerPhotoUpload() {
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) fileInput.click();
+        }
+
+        async function uploadPhoto(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(`${API_BASE}/upload_image`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (res.ok) {
+                    // Try to retrieve the parsed schema back from backend
+                    try {
+                        const schemaRes = await fetch(`${API_BASE}/schema`);
+                        if (schemaRes.ok) {
+                            const schemaData = await schemaRes.json();
+                            if (schemaData && schemaData.schema) {
+                                schemaState.tables = parseSchemaSQL(schemaData.schema);
+                                renderSchemaView(schemaState.tables);
+                            }
+                        }
+                    } catch (_) {}
+                    selectNavOption('schema');
+                } else {
+                    console.warn('Failed to process image schema.');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function submitSchema() {
+            const input = document.getElementById('schema-text-input');
+            const schemaText = input ? input.value.trim() : '';
+            if (!schemaText) return;
+
+            const btn = document.getElementById('submit-schema-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
+
+            try {
+                const res = await fetch(`${API_BASE}/schema`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ schema: schemaText })
+                });
+                if (res.ok) {
+                    // Parse client-side (we already have the text) and render
+                    schemaState.tables = parseSchemaSQL(schemaText);
+                    renderSchemaView(schemaState.tables);
+                    if (input) input.value = '';
+                    toggleSchemaInput(false);
+                    selectNavOption('schema');
+                } else {
+                    console.warn('Failed to update schema.');
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Submit Schema'; }
+            }
+        }
+
+        async function resetBackendWorkspace() {
+            try {
+                await fetch(`${API_BASE}/reset`, { method: 'POST' });
+            } catch (_) {}
+            queryState.history = [];
+            schemaState.tables = [];
+            renderQueryFeed();
+            renderResultsTable(null);
+            resetExplainCard();
+            renderSchemaView([]);
+            selectNavOption('query');
+        }
+
+        /* ── INSTANT WIPE WITH 1.3s FADE-AWAY ANIMATION ── */
+        function triggerInstantWipe() {
+            toggleHorizontalMenu(false);
+
+            // Everything derived from the loaded schema
+            const feedHistory   = document.getElementById('query-feed-history');
+            const tableWrapper  = document.getElementById('table-wrapper');
+            const explainCard   = document.getElementById('explain-main-card');
+            const schemaGrid    = document.getElementById('schema-grid-container');
+
+            const targets = [feedHistory, tableWrapper, explainCard, schemaGrid].filter(Boolean);
+
+            // Kick off the Thanos snap
+            targets.forEach(el => el.classList.add('wipe-fading'));
+
+            setTimeout(() => {
+                // Clear state
+                queryState.history = [];
+                schemaState.tables = [];
+
+                // Remove animation class, then re-render in place (stays on current tab)
+                targets.forEach(el => el.classList.remove('wipe-fading'));
+
+                renderQueryFeed();
+                renderResultsTable(null);
+                resetExplainCard();
+                renderSchemaView([]);
+
+                // Backend reset (fire-and-forget)
+                fetch(`${API_BASE}/reset`, { method: 'POST' }).catch(() => {});
+            }, 1300);
+        }
+
+        /* ── RESET EXPLAIN CARD TO INITIAL EMPTY STATE ── */
+        function resetExplainCard() {
+            const explainCard  = document.getElementById('explain-main-card');
+            const explainEmpty = document.getElementById('explain-empty-state');
+            const objEl        = document.getElementById('explain-objective');
+            const tablesEl     = document.getElementById('explain-target-tables');
+            const bulletsEl    = document.getElementById('explain-bullet-list');
+            const plainEnglishEl = document.getElementById('explain-plain-english-list');
+
+            if (explainCard)    explainCard.style.display = 'none';
+            if (explainEmpty)   explainEmpty.style.display = '';
+            if (objEl)          objEl.innerText = '';
+            if (tablesEl)       tablesEl.innerHTML = '';
+            if (bulletsEl)      bulletsEl.innerHTML = '';
+            if (plainEnglishEl) plainEnglishEl.innerHTML = '';
+        }
+
+        /* ── SCHEMA SQL PARSER ── */
+        function splitByCommaRespectingParens(str) {
+            const parts = [];
+            let depth = 0;
+            let current = '';
+            for (const ch of str) {
+                if (ch === '(') depth++;
+                else if (ch === ')') depth--;
+                else if (ch === ',' && depth === 0) {
+                    parts.push(current);
+                    current = '';
+                    continue;
+                }
+                current += ch;
+            }
+            if (current.trim()) parts.push(current);
+            return parts;
+        }
+
+        function parseColumns(body) {
+            const columns = [];
+            const fkCols  = new Set();
+
+            const lines = splitByCommaRespectingParens(body);
+
+            // First pass: collect FK column names from FOREIGN KEY constraints
+            for (const line of lines) {
+                const t = line.trim();
+                const fkMatch = t.match(/^FOREIGN\s+KEY\s*\(([^)]+)\)/i);
+                if (fkMatch) {
+                    fkMatch[1].split(',').forEach(c => fkCols.add(c.trim().replace(/[`"[\]]/g, '')));
+                }
+            }
+
+            // Second pass: parse column definitions
+            for (const line of lines) {
+                const t = line.trim();
+                if (!t) continue;
+                // Skip table-level constraints
+                if (/^(PRIMARY\s+KEY|UNIQUE|INDEX|KEY\s|CONSTRAINT|FOREIGN\s+KEY|CHECK)/i.test(t)) continue;
+
+                const colMatch = t.match(/^[`"[]?(\w+)[`"\]]?\s+([A-Za-z]+(?:\s+UNSIGNED)?(?:\([^)]*\))?(?:\s+UNSIGNED)?)/i);
+                if (!colMatch) continue;
+
+                const colName = colMatch[1];
+                const colType = colMatch[2].trim().toUpperCase();
+                const isPK    = /PRIMARY\s+KEY/i.test(t) || /\bPK\b/i.test(t);
+
+                columns.push({
+                    name: colName,
+                    type: colType,
+                    isPK,
+                    isFK: fkCols.has(colName)
+                });
+            }
+            return columns;
+        }
+
+        function parseSchemaSQL(schemaText) {
+            const tables = [];
+            const tableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"[]?(\w+)[`"\]]?\s*\(([\s\S]*?)\)\s*(?:ENGINE|DEFAULT|CHARSET|;|$)/gi;
+            let match;
+            while ((match = tableRegex.exec(schemaText)) !== null) {
+                const name    = match[1];
+                const columns = parseColumns(match[2]);
+                if (columns.length > 0) tables.push({ name, columns });
+            }
+            // Fallback: simpler regex if the above matched nothing
+            if (tables.length === 0) {
+                const simpleRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"[]?(\w+)[`"\]]?\s*\(([\s\S]*?)\);/gi;
+                while ((match = simpleRegex.exec(schemaText)) !== null) {
+                    const name    = match[1];
+                    const columns = parseColumns(match[2]);
+                    if (columns.length > 0) tables.push({ name, columns });
+                }
+            }
+            return tables;
+        }
+
+        /* ── SCHEMA VIEW RENDERER ── */
+        function renderSchemaView(tables) {
+            const grid       = document.getElementById('schema-grid-container');
+            const emptyState = document.getElementById('schema-empty-state');
+            if (!grid) return;
+
+            // Remove old cards (keep the empty state div)
+            grid.querySelectorAll('.schema-table-card').forEach(c => c.remove());
+
+            if (!tables || tables.length === 0) {
+                if (emptyState) emptyState.style.display = 'flex';
+                return;
+            }
+            if (emptyState) emptyState.style.display = 'none';
+
+            for (const table of tables) {
+                const card = document.createElement('div');
+                card.className = 'schema-table-card';
+                card.innerHTML = `
+                    <div class="schema-card-header">
+                        <span class="schema-table-name">${escapeHtml(table.name)}</span>
+                        <span class="schema-col-count">${table.columns.length} col${table.columns.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <table class="schema-dict-table">
+                        <thead>
+                            <tr>
+                                <th>Column</th>
+                                <th>Type</th>
+                                <th>Keys</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${table.columns.map(col => `
+                                <tr>
+                                    <td class="schema-col-name">${escapeHtml(col.name)}</td>
+                                    <td><span class="schema-type-tag">${escapeHtml(col.type)}</span></td>
+                                    <td class="schema-keys-cell">
+                                        ${col.isPK ? '<span class="schema-key-badge pk">PK</span>' : ''}
+                                        ${col.isFK ? '<span class="schema-key-badge fk">FK</span>' : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                grid.appendChild(card);
+            }
+        }
+    </script>
+    <div class="copy-feedback-tooltip" id="copy-feedback-tooltip">Copied!</div>
+</body>
+
+</html>
